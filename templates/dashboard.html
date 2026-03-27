@@ -1,0 +1,98 @@
+<!--giao dien front-end: hien thi 3 he thong tich hop -->
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Dashboard tich hop he thong</title>
+
+    </head>
+    <body>
+        <h1> dashboard tich hop 3 he thong</h1>
+        <!-- 3 nut goi api -->
+         <button onclick="loadLazada()">Lazada</button>
+         <button onclick="loadWeather()">Thoi tiet</button>
+         <button onclick="loadNews()">Tin tuc</button>
+
+         <!-- khu vuc hien thi du lieu tu 3 he thong -->
+          <h2>san pham Lazada</h2>
+          <div id="lazada"></div>
+
+          <h2>thoi tiet</h2>
+            <div id="weather"></div>
+
+            <h2>tin tuc</h2>
+            <div id="news"></div>
+
+            <script>
+                function loadLazada(){
+                    fetch("/api/lazada")
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("Lazada data:", data);
+                        if (!Array.isArray(data)) {
+                            document.getElementById("lazada").innerHTML = `<p style="color:red">Lỗi: ${JSON.stringify(data)}</p>`;
+                            return;
+                        }
+                        let html = "";
+                        if (data.length === 0) {
+                            html = "<p>Không có sản phẩm</p>";
+                        } else {
+                            data.forEach(p => {
+                                html += `<p><b>${p.title}</b> - ${p.price}</p>`;
+                            });
+                        }
+                        document.getElementById("lazada").innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error("Lazada error:", error);
+                        document.getElementById("lazada").innerHTML = `<p style="color:red">Lỗi: ${error.message}</p>`;
+                    });
+                }
+                function loadWeather(){
+                    fetch("/api/weather")
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log("Weather data:", data);
+                        if (data.error) {
+                            document.getElementById("weather").innerHTML = `<p style="color:red">Lỗi: ${data.error}</p>`;
+                            return;
+                        }
+                        let html = `<p><b>Thành phố:</b> ${data.city}</p>`;
+                        html += `<p><b>Nhiệt độ:</b> ${data.temp}°C</p>`;
+                        html += `<p><b>Độ ẩm:</b> ${data.humidity}%</p>`;
+                        html += `<p><b>Mô tả:</b> ${data.description}</p>`;
+                        document.getElementById("weather").innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error("Weather error:", error);
+                        document.getElementById("weather").innerHTML = `<p style="color:red">Lỗi: ${error.message}</p>`;
+                    });
+                }
+                function loadNews(){
+                    fetch("/api/news")
+                    .then(res => res.json())
+                    .then(data => {
+                        console.log("News data:", data);
+                        if (!Array.isArray(data)) {
+                            document.getElementById("news").innerHTML = `<p style="color:red">Lỗi: ${JSON.stringify(data)}</p>`;
+                            return;
+                        }
+                        let html = "";
+                        if (data.length === 0) {
+                            html = "<p>Không có tin tức</p>";
+                        } else {
+                            data.forEach(n => {
+                                html += `<p><b>${n.title}</b><br>${n.description}</p>`;
+                            });
+                        }
+                        document.getElementById("news").innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error("News error:", error);
+                        document.getElementById("news").innerHTML = `<p style="color:red">Lỗi: ${error.message}</p>`;
+                    });
+                }
+            </script>
+
+    </body>
+</html>
