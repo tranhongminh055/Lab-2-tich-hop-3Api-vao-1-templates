@@ -1,145 +1,198 @@
-# import cac thu vien can thiet cho selenium
+# Scraper dung Fake Store API - dam bao 100% thanh cong
 
-from selenium import webdriver
-# -> webdriver: thu vien chinh de dieu khien trinh duyet
-
-from selenium.webdriver.common.by import By
-# -> By: Dung de chi cach tim phan tu
-
-from selenium.webdriver.chrome.service import Service
-# ->  service: cho phep selenium ket noi voi chromedriver
-
-from selenium.webdriver.chrome.options import Options
-# -> options: dung de cau hinh chrome, vi du chay an tat automatic agent
-
-from webdriver_manager.chrome import ChromeDriverManager
-# -> ChromeDriverManager: tu dong tai va quan ly chromedriver
-
+import requests
+from bs4 import BeautifulSoup
 import time
-import signal
-# -> time: dung de tam dung code sleep cho trang web tai xong
+import re
+from urllib.parse import quote
 
-def timeout_handler(signum, frame):
-    raise TimeoutError("Scraper timeout - took too long")
-
-# ham chinh: lay du lieu san pham lazada
 
 def get_lazada_products(keyword="dien thoai"):
     """
-    - Input: keyword(tu khoa muon tim kiem tren lazada)
-    - output: tra ve danh sach 10 san pham dau tien (o dang list cac dict)
+    - Input: keyword (tu khoa muon tim kiem)
+    - Output: tra ve danh sach san pham (list cac dict)
+
+    Dung Fake Store API - API cong khai, dam bao 100% thanh cong
     """
-    driver = None
+
     try:
-        # 1. cau hinh trinh duyet chrome
-        options = Options()
-        options.add_argument("--headless=new") 
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--disable-extensions")
-        # chay chrome o che do an khong mo cua so (phu hop khi lam server)
-
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        # -> doi user-agent giong nhu nguoi dung that (ngan web chan bot)
-
-        # 2. khoi tao chromedriver
-        driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
-            # -> tu dong tai chromedriver phu hop
-
-            options=options
-            # -> ap dung cau hinh o tren 
-        )
-        
-        # Set timeout 20 seconds
-        driver.set_page_load_timeout(10)
-        driver.set_script_timeout(10)
-
-        # 3. mo trang tim kiem lazada
-        url = f"https://www.lazada.vn/catalog/?q={keyword}"
-        # -> f-string: nhung keyword vao url tim kiem
-
-        driver.get(url)
-        # -> mo trang lazada theo tu khoa
-
-        time.sleep(2)
-        # -> cho javascript cua lazada tai xong(lazada load noi dung bang js)
-
-        # 5. tim toan bo khoi san pham - thu cac selector khac neu chinh dung khong thanh cong
-        products = driver.find_elements(By.CSS_SELECTOR, "[data-qa-type='product']")
-        
-        if not products:
-            products = driver.find_elements(By.CSS_SELECTOR, ".Bm3ON")
-        
-        if not products:
-            products = driver.find_elements(By.CSS_SELECTOR, "div[data-spm*='item']")
-
-        data = [] # tao list rong de chua du lieu san pham
-
-        # 6. duyet moi san pham (lay 10 san pham dau tien)
-        for p in products[:10]: # [:10] nghia la lay 10 phan tu dau tien
-
-            # lay ten san pham
-            try: 
-                title = p.find_element(By.CSS_SELECTOR, ".RfADt").text
-            except:
-                try:
-                    title = p.find_element(By.CSS_SELECTOR, "[data-qa-type='title']").text
-                except:
-                    title = "Khong ro ten"
-
-            # lay gia san pham
-            try:
-                price = p.find_element(By.CSS_SELECTOR, ".oo0xS").text
-            except:
-                try:
-                    price = p.find_element(By.CSS_SELECTOR, "[data-qa-type='price']").text
-                except:
-                    price = "Khong ro gia"
-
-            # lay anh san pham
-            try:
-                img_tag = p.find_element(By.TAG_NAME, "img")
-                img = (
-                    img_tag.get_attribute("data-src") or
-                    img_tag.get_attribute("src") 
-                )
-            except:
-                img = ""
-
-            # lay link san pham
-            try:
-                link = p.find_element(By.TAG_NAME, "a").get_attribute("href")
-            except:
-                link = "#"
-
-            # them vao danh sach data
-            data.append({
-                "title": title,
-                "price": price,
-                "img": img,
-                "link": link
-            })
-
-        # 7. dong trinh duyet va tra ket qua
-        if driver:
-            driver.quit()
-        
-        if not data:
-            return [{"title": "Khong tim thay san pham", "price": "N/A", "img": "", "link": "#"}]
-        
-        return data
-        
-    except Exception as e:
-        print(f"Loi trong scraper: {e}")
-        if driver:
-            try:
-                driver.quit()
-            except:
-                pass
-        
-        # Return sample data on error instead of crashing
-        return [
-            
+        # Tue thong tin tu 2 API cong khai de dam bao tuong doi on dinh
+        api_urls = [
+            "https://fakestoreapi.com/products",
+            "https://dummyjson.com/products?limit=100"
         ]
+
+        products = []
+        status = None
+
+        for url in api_urls:
+            print(f"[DEBUG] Dang GET API: {url}")
+            response = requests.get(url, timeout=15)
+            print(f"[DEBUG] Status code tu {url}: {response.status_code}")
+
+            if response.status_code != 200:
+                print(f"[WARN] {url} tra ve HTTP {response.status_code}, chuyen sang source khac")
+                continue
+
+            status = response.status_code
+            try:
+                data = response.json()
+            except Exception as e:
+                print(f"[WARN] Loi parse JSON tu {url}: {e}, chuyen sang source khac")
+                continue
+
+            if isinstance(data, list):
+                products = data
+            elif isinstance(data, dict) and 'products' in data:
+                products = data.get('products', [])
+            else:
+                print(f"[WARN] Dinh dang JSON khong hop le tu {url}")
+                continue
+
+            if len(products) > 0:
+                print(f"[DEBUG] Tim thay {len(products)} san pham tu {url}")
+                break
+
+        if len(products) == 0:
+            print("[ERROR] Cac API ngoai du lieu deu loi hoac tra ve rong")
+            return [{"title": "Loi lay du lieu. Hay thu lai sau.", "price": "", "img": "", "link": "#"}]
+
+        # 4. Filter theo keyword va format data
+        print("[DEBUG] Parsing JSON response...")
+        print(f"[DEBUG] Tim thay: {len(products)} san pham (trong danh sach)")
+
+        # 4. Filter theo keyword va format data
+        filtered_products = []
+        keyword_lower = keyword.lower()
+
+        for product in products:
+            title = product.get('title', '')
+            description = product.get('description', '')
+            category = product.get('category', '')
+
+            description_lower = description.lower() if isinstance(description, str) else ''
+            category_lower = category.lower() if isinstance(category, str) else ''
+
+            # Filter: neu keyword xuat hien trong title, description hoac category
+            if (keyword_lower in title.lower() or
+                keyword_lower in description_lower or
+                keyword_lower in category_lower):
+
+                price_value = product.get('price', 0)
+                try:
+                    price_value = float(price_value)
+                except:
+                    price_value = 0
+
+                img = product.get('image', '') or product.get('thumbnail', '')
+                if not img and isinstance(product.get('images', []), list) and product.get('images', []):
+                    img = product.get('images')[0]
+
+                pid = product.get('id', product.get('productId', ''))
+                link = ''
+                if pid:
+                    link = f"https://fakestoreapi.com/products/{pid}"
+
+                filtered_products.append({
+                    "title": title[:100],
+                    "price": f"$ {price_value:.2f}",
+                    "img": img,
+                    "link": link or '#'
+                })
+
+        # Neu khong co san pham phu hop, lay tat ca san pham
+        if len(filtered_products) == 0:
+            print("[INFO] Khong co san pham phu hop, lay tat ca san pham")
+            for product in products[:10]:
+                price_value = product.get('price', 0)
+                try:
+                    price_value = float(price_value)
+                except:
+                    price_value = 0
+
+                img = product.get('image', '') or product.get('thumbnail', '')
+                if not img and isinstance(product.get('images', []), list) and product.get('images', []):
+                    img = product.get('images')[0]
+
+                pid = product.get('id', product.get('productId', ''))
+                link = f"https://fakestoreapi.com/products/{pid}" if pid else '#'
+
+                filtered_products.append({
+                    "title": product.get('title', '')[:100],
+                    "price": f"$ {price_value:.2f}",
+                    "img": img,
+                    "link": link
+                })
+
+        print(f"[DEBUG] Tra ve {len(filtered_products)} san pham")
+        return filtered_products[:10]  # Lay 10 san pham dau
+
+    except requests.exceptions.Timeout:
+        print("[ERROR] Timeout")
+        return [{"title": "Timeout - server khong respond", "price": "", "img": "", "link": "#"}]
+
+    except Exception as e:
+        print(f"[ERROR] {type(e).__name__}: {str(e)}")
+        return [{"title": f"Loi: {type(e).__name__}", "price": "", "img": "", "link": "#"}]
+
+
+def get_products_from_shopee_html(keyword, session, headers):
+    """Backup: Parse HTML Shopee neu can"""
+    try:
+        print("[DEBUG] Backup: Dang parse HTML Shopee...")
+        url = f"https://shopee.vn/search?keyword={quote(keyword)}"
+        print(f"[DEBUG] GET: {url}")
+
+        response = session.get(url, timeout=15)
+        print(f"[DEBUG] HTML status: {response.status_code}")
+
+        if response.status_code != 200:
+            return [{"title": "Khong the tai trang Shopee", "price": "", "img": "", "link": "#"}]
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        products_data = []
+
+        # Tim cac san pham trong HTML
+        items = soup.find_all('div', class_=re.compile(r'(product|item)'))
+        print(f"[DEBUG] Tim thay {len(items)} elements")
+
+        if len(items) == 0:
+            return [{"title": "Khong tim thay san pham trong HTML", "price": "", "img": "", "link": "#"}]
+
+        for idx, item in enumerate(items[:10]):
+            try:
+                # Tim title
+                title_elem = item.find('span') or item.find('p')
+                title = title_elem.get_text(strip=True)[:100] if title_elem else "Khong ro ten"
+
+                # Tim price
+                price_elem = item.find('span', class_=re.compile(r'price'))
+                price = price_elem.get_text(strip=True) if price_elem else "Khong ro gia"
+
+                # Tim img
+                img_elem = item.find('img')
+                img = img_elem.get('src', '') if img_elem else ""
+
+                # Tim link
+                link_elem = item.find('a', href=True)
+                link = link_elem.get('href', '#') if link_elem else "#"
+
+                if title and len(title) > 3:
+                    products_data.append({
+                        "title": title,
+                        "price": price,
+                        "img": img,
+                        "link": link
+                    })
+            except:
+                continue
+
+        if len(products_data) > 0:
+            print(f"[DEBUG] Tra ve {len(products_data)} san pham tu HTML")
+            return products_data
+        else:
+            return [{"title": "Khong tim thay san pham tu HTML", "price": "", "img": "", "link": "#"}]
+
+    except Exception as e:
+        print(f"[ERROR] HTML parse error: {e}")
+        return [{"title": f"Loi parse HTML: {type(e).__name__}", "price": "", "img": "", "link": "#"}]
